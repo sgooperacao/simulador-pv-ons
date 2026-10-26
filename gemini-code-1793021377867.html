@@ -1,0 +1,1361 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulador de Parcela Variável (PV) - ONS & ANEEL</title>
+  <!-- Tailwind CSS & Lucide Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- SheetJS para importação/exportação de Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="bg-blue-600 p-2 rounded-lg text-white shadow-lg shadow-blue-500/20">
+          <i data-lucide="zap" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight flex items-center gap-2">
+            Simulador de Parcela Variável (PV)
+            <span class="text-xs px-2 py-0.5 rounded-full bg-blue-900/60 text-blue-300 border border-blue-700/50">ONS & ANEEL</span>
+          </h1>
+          <p class="text-xs text-slate-400">Submódulo 15.12 · RO-AO.BR.05 · REN 729/2016 e 905/2020</p>
+        </div>
+      </div>
+      
+      <!-- Navegação de Abas -->
+      <div class="flex items-center space-x-2 bg-slate-950 p-1 rounded-lg border border-slate-800">
+        <button onclick="switchTab('simulador')" id="tab-btn-simulador" class="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition bg-blue-600 text-white">
+          <i data-lucide="calculator" class="w-4 h-4"></i> Simulador
+        </button>
+        <button onclick="switchTab('ativos')" id="tab-btn-ativos" class="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition text-slate-400 hover:text-white">
+          <i data-lucide="database" class="w-4 h-4"></i> Base de FTs (<span id="total-ft-badge">17</span>)
+        </button>
+        <button onclick="switchTab('matriz')" id="tab-btn-matriz" class="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition text-slate-400 hover:text-white">
+          <i data-lucide="sliders" class="w-4 h-4"></i> Matriz Kp / Ko
+        </button>
+        <button onclick="switchTab('prazos')" id="tab-btn-prazos" class="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition text-slate-400 hover:text-white">
+          <i data-lucide="clock" class="w-4 h-4"></i> Prazos ONS
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Conteúdo Principal -->
+  <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full">
+
+    <!-- ABA 1: SIMULADOR -->
+    <div id="view-simulador" class="space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Painel de Parâmetros de Entrada -->
+        <div class="lg:col-span-7 space-y-5">
+          
+          <!-- Seleção da FT e Módulo -->
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+            <h2 class="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
+              <i data-lucide="layers" class="w-4 h-4 text-blue-400"></i> 1. Seleção do Ativo e Base Contratual (PB)
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">Empresa / Concessionária</label>
+                <select id="sel-empresa" onchange="onEmpresaChange()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
+                  <option value="EDF OITI - CCO-2023-004">EDF OITI - CCO-2023-004</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">Mês de Referência do Evento</label>
+                <div class="grid grid-cols-2 gap-2">
+                  <select id="sel-mes" onchange="recalcular()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
+                    <option value="31">Janeiro (31d)</option>
+                    <option value="28">Fevereiro (28d)</option>
+                    <option value="29">Fevereiro (29d)</option>
+                    <option value="31">Março (31d)</option>
+                    <option value="30">Abril (30d)</option>
+                    <option value="31">Maio (31d)</option>
+                    <option value="30">Junho (30d)</option>
+                    <option value="31">Julho (31d)</option>
+                    <option value="31">Agosto (31d)</option>
+                    <option value="30">Setembro (30d)</option>
+                    <option value="31" selected>Outubro (31d)</option>
+                    <option value="30">Novembro (30d)</option>
+                    <option value="31">Dezembro (31d)</option>
+                  </select>
+                  <input type="number" id="inp-ano" value="2026" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2 text-sm text-slate-200 text-center" readonly>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label class="block text-xs font-medium text-slate-400 mb-1">Função Transmissão (FT)</label>
+              <select id="sel-ft" onchange="onFtChange()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 font-mono focus:outline-none focus:border-blue-500">
+                <!-- Preenchido via JS -->
+              </select>
+            </div>
+
+            <!-- Abrangência: FT Total vs. Módulo Isolado -->
+            <div class="p-3.5 bg-slate-950 rounded-lg border border-slate-800/80 mb-3">
+              <label class="block text-xs font-semibold text-slate-300 mb-2">Escopo do Desconto (Submódulo 15.12 item 7.1.3.12 / RO-AO.BR.05)</label>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                <label class="flex items-center space-x-2 p-2 rounded border border-slate-800 bg-slate-900 cursor-pointer hover:border-slate-700">
+                  <input type="radio" name="escopo-desconto" value="FT_TOTAL" checked onchange="onEscopoChange()" class="text-blue-600 focus:ring-0">
+                  <span class="text-slate-200">FT Completa (Todos os módulos)</span>
+                </label>
+                <label class="flex items-center space-x-2 p-2 rounded border border-slate-800 bg-slate-900 cursor-pointer hover:border-slate-700">
+                  <input type="radio" name="escopo-desconto" value="MODULO_ISOLADO" onchange="onEscopoChange()" class="text-blue-600 focus:ring-0">
+                  <span class="text-slate-200">Utilização Parcial (Módulo Específico)</span>
+                </label>
+              </div>
+
+              <div id="box-modulo-especifico" class="mt-3 hidden">
+                <label class="block text-xs font-medium text-slate-400 mb-1">Selecione o Módulo / Terminal Afetado</label>
+                <select id="sel-modulo" onchange="onModuloChange()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono">
+                  <!-- Preenchido via JS -->
+                </select>
+              </div>
+            </div>
+
+            <!-- Resumo Financeiro da FT Selecionada -->
+            <div class="grid grid-cols-3 gap-2 bg-slate-950/60 p-3 rounded-lg border border-slate-800 text-xs">
+              <div>
+                <span class="text-slate-500 block">RAP Anual Total</span>
+                <span id="card-rap-anual" class="font-mono font-semibold text-slate-200">R$ 0,00</span>
+              </div>
+              <div>
+                <span class="text-slate-500 block">RAP Mensal Total</span>
+                <span id="card-rap-mensal" class="font-mono font-semibold text-slate-200">R$ 0,00</span>
+              </div>
+              <div>
+                <span class="text-slate-500 block">PB Aplicado ao Cálculo</span>
+                <span id="card-pb-aplicado" class="font-mono font-bold text-amber-400">R$ 0,00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tipo de Evento e Enquadramento Regulatório -->
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+            <h2 class="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
+              <i data-lucide="activity" class="w-4 h-4 text-amber-400"></i> 2. Caracterização do Evento e Fatores K (ANEEL / ONS)
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">Tipo de Evento</label>
+                <select id="sel-tipo-evento" onchange="onTipoEventoChange()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
+                  <option value="PROGRAMADO_NORMAL">Desligamento Programado (Normal)</option>
+                  <option value="PROGRAMADO_PRORROGADO" selected>Desligamento Programado com Prorrogação/Atraso</option>
+                  <option value="PROGRAMADO_ANTECIPADO">Desligamento Programado com Retorno Antecipado</option>
+                  <option value="OUTROS_DESLIGAMENTOS">Outros Desligamentos (Automático / Emergência)</option>
+                  <option value="URGENCIA">Intervenção de Urgência (Ko = 50)</option>
+                  <option value="CANCELAMENTO_5D">Cancelamento com Antecedência < 5 dias (PVCI)</option>
+                  <option value="RESTRICAO_OPERATIVA">Restrição de Capacidade Operativa (PVRO)</option>
+                  <option value="EQUIP_RESERVA">Utilização de Equipamento Reserva (PVR)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">Família Regulamentar (Tabela Kp/Ko ANEEL)</label>
+                <input type="text" id="inp-familia-ft" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-300 font-mono" readonly>
+              </div>
+            </div>
+
+            <!-- Fatores Kp e Ko -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-950 p-3.5 rounded-lg border border-slate-800 mb-4">
+              <div>
+                <label class="block text-[11px] text-slate-400">Kp Programado</label>
+                <input type="number" step="0.1" id="inp-kp" onchange="recalcular()" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-emerald-400 font-mono font-bold">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-400">Ko Não Programado</label>
+                <input type="number" step="0.1" id="inp-ko" onchange="recalcular()" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-rose-400 font-mono font-bold">
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-400">Padrão Frequência</label>
+                <span id="badge-padrao-freq" class="block mt-1 text-xs font-mono text-slate-300 font-medium">--</span>
+              </div>
+              <div class="flex items-end">
+                <label class="flex items-center space-x-1.5 text-[11px] text-slate-400 pb-1 cursor-pointer">
+                  <input type="checkbox" id="chk-auto-k" checked onchange="toggleAutoK()" class="rounded text-blue-600 focus:ring-0">
+                  <span>Auto ANEEL</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Módulo Geral: Regras Específicas de SE e Arranjo -->
+            <div id="box-regras-mg" class="p-3.5 bg-blue-950/30 border border-blue-900/50 rounded-lg space-y-3 mb-4 hidden">
+              <span class="text-xs font-bold text-blue-300 flex items-center gap-1.5">
+                <i data-lucide="shield-alert" class="w-4 h-4"></i> Condições Especiais de Módulo Geral (MG) - Submódulo 15.12 itens 7.1.3.10 e 7.1.3.11
+              </span>
+              
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label class="block text-slate-400 mb-1">Origem do Evento em MG</label>
+                  <select id="sel-mg-origem" onchange="recalcular()" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200">
+                    <option value="OUTROS_EQUIP">Equipamento comum do MG (exceto disjuntor)</option>
+                    <option value="DISJUNTOR_DJM">Disjuntores em Barra Dupla c/ Disjuntor e Meio</option>
+                    <option value="DISJUNTOR_OUTROS">Disjuntores em Outros Arranjos (50% do PB)</option>
+                  </select>
+                </div>
+
+                <div id="box-mg-fts-afetadas">
+                  <label class="block text-slate-400 mb-1">FTs Conectadas Indisponíveis / Total da SE</label>
+                  <div class="flex items-center space-x-2">
+                    <input type="number" id="inp-mg-fts-indisp" value="2" min="1" onchange="recalcular()" class="w-16 bg-slate-900 border border-slate-700 rounded p-1 text-center font-mono">
+                    <span class="text-slate-400">de</span>
+                    <input type="number" id="inp-mg-fts-total" value="5" min="1" onchange="recalcular()" class="w-16 bg-slate-900 border border-slate-700 rounded p-1 text-center font-mono">
+                    <span class="text-[11px] text-slate-400">FTs</span>
+                  </div>
+                </div>
+
+                <div id="box-mg-djs-afetadas" class="hidden">
+                  <label class="block text-slate-400 mb-1">DJs Indisponíveis / Total DJs da FT MG</label>
+                  <div class="flex items-center space-x-2">
+                    <input type="number" id="inp-mg-djs-indisp" value="1" min="1" onchange="recalcular()" class="w-16 bg-slate-900 border border-slate-700 rounded p-1 text-center font-mono">
+                    <span class="text-slate-400">de</span>
+                    <input type="number" id="inp-mg-djs-total" value="6" min="1" onchange="recalcular()" class="w-16 bg-slate-900 border border-slate-700 rounded p-1 text-center font-mono">
+                    <span class="text-[11px] text-slate-400">DJs</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Entrada de Horários / Duração -->
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-semibold text-slate-300">3. Apuração da Duração e Marcos Operativos (RO-AO.BR.05)</label>
+                <button type="button" onclick="alternarModoTempo()" class="text-xs text-blue-400 hover:underline flex items-center gap-1">
+                  <i data-lucide="repeat" class="w-3.5 h-3.5"></i> Alternar p/ Entrada Direta de Minutos
+                </button>
+              </div>
+
+              <!-- Modo 1: Marcos de Tempo Operativo -->
+              <div id="box-marcos-tempo" class="space-y-3">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs">
+                  <div>
+                    <label class="block text-slate-500 mb-0.5">Início Previsto</label>
+                    <input type="datetime-local" id="t-prev-ini" onchange="calcDeltasTempo()" class="w-full bg-slate-900 border border-slate-700 rounded p-1 text-[11px] font-mono">
+                  </div>
+                  <div>
+                    <label class="block text-slate-500 mb-0.5">Término Previsto</label>
+                    <input type="datetime-local" id="t-prev-fim" onchange="calcDeltasTempo()" class="w-full bg-slate-900 border border-slate-700 rounded p-1 text-[11px] font-mono">
+                  </div>
+                  <div>
+                    <label class="block text-slate-500 mb-0.5">Desligamento Real (tDE)</label>
+                    <input type="datetime-local" id="t-real-ini" onchange="calcDeltasTempo()" class="w-full bg-slate-900 border border-slate-700 rounded p-1 text-[11px] font-mono">
+                  </div>
+                  <div>
+                    <label class="block text-slate-500 mb-0.5">Disponibilização (tDA)</label>
+                    <input type="datetime-local" id="t-real-fim" onchange="calcDeltasTempo()" class="w-full bg-slate-900 border border-slate-700 rounded p-1 text-[11px] font-mono">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Modo 2: Minutos Diretos (Desmembrados) -->
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-950 p-3 rounded-lg border border-slate-800">
+                <div id="col-min-prog">
+                  <label class="block text-xs text-slate-400 mb-1">Minutos Programados (dentro do prazo)</label>
+                  <input type="number" id="inp-min-prog" value="480" min="0" oninput="recalcular()" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100 font-mono">
+                </div>
+
+                <div id="col-min-atraso">
+                  <label class="block text-xs text-amber-400 mb-1">Atraso Total (minutos)</label>
+                  <input type="number" id="inp-min-atraso" value="75" min="0" oninput="recalcular()" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-amber-300 font-mono">
+                  <span class="text-[10px] text-slate-500">1ºs 30m (Kp×1.5), após (Kp×5)</span>
+                </div>
+
+                <div id="col-min-nao-utilizado" class="hidden">
+                  <label class="block text-xs text-cyan-400 mb-1">Período Não Utilizado (minutos)</label>
+                  <input type="number" id="inp-min-nao-utilizado" value="60" min="0" oninput="recalcular()" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-cyan-300 font-mono">
+                  <span class="text-[10px] text-slate-500">Aplica 20% com Kp</span>
+                </div>
+
+                <div id="col-min-total">
+                  <label class="block text-xs text-slate-400 mb-1">Duração Real Total (minutos)</label>
+                  <input type="number" id="inp-min-total" value="555" min="0" oninput="recalcular()" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-200 font-mono bg-slate-800" readonly>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Painel de Resultados e Parecer Técnico -->
+        <div class="lg:col-span-5 space-y-5">
+          
+          <!-- Card de Valor da PV -->
+          <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-xl p-5 shadow-xl relative overflow-hidden">
+            <div class="flex justify-between items-start mb-2">
+              <span class="text-xs uppercase tracking-wider font-semibold text-slate-400">Estimativa de Parcela Variável</span>
+              <span id="badge-tipo-evento" class="text-[10px] px-2 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-800 font-mono">
+                PROGRAMADO PRORROGADO
+              </span>
+            </div>
+
+            <div class="my-3">
+              <div class="text-3xl font-extrabold text-amber-400 font-mono" id="res-pv-total">
+                R$ 0,00
+              </div>
+              <p class="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                <span id="res-percent-rap">Equivale a 0,00% da RAP mensal</span>
+              </p>
+            </div>
+
+            <!-- Trava Regulatória Limite A (50% PB) -->
+            <div id="box-limite-a" class="hidden p-2.5 bg-rose-950/40 border border-rose-900/60 rounded-lg text-xs text-rose-300 mb-3">
+              <i data-lucide="alert-triangle" class="w-3.5 h-3.5 inline mr-1"></i>
+              <strong>Limite A Aplicado (Submódulo 15.12 item 7.7.3.1):</strong> O desconto excedeu 50% do PB mensal. Desconto efetivo limitado a <span id="res-teto-50" class="font-bold font-mono">R$ 0,00</span> (saldo transferido para o mês seguinte).
+            </div>
+
+            <!-- Desdobramento por Degrau de Fator K -->
+            <div class="border-t border-slate-800 pt-3 space-y-2 text-xs">
+              <div class="flex justify-between text-slate-400">
+                <span id="label-degrau-1">Janela Programada (Kp = 10):</span>
+                <span id="val-degrau-1" class="font-mono text-slate-200">R$ 0,00</span>
+              </div>
+              <div class="flex justify-between text-slate-400" id="linha-degrau-2">
+                <span id="label-degrau-2">Atraso ≤ 30 min (Kp × 1,5 = 15):</span>
+                <span id="val-degrau-2" class="font-mono text-amber-300">R$ 0,00</span>
+              </div>
+              <div class="flex justify-between text-slate-400" id="linha-degrau-3">
+                <span id="label-degrau-3">Atraso > 30 min (Kp × 5,0 = 50):</span>
+                <span id="val-degrau-3" class="font-mono text-rose-300">R$ 0,00</span>
+              </div>
+              <div class="flex justify-between text-slate-400 border-t border-slate-800/60 pt-1 font-semibold">
+                <span>Custo por Minuto Normal (Kp):</span>
+                <span id="res-custo-minuto" class="font-mono text-slate-300">R$ 0,00 / min</span>
+              </div>
+            </div>
+
+            <!-- Ações -->
+            <div class="mt-4 pt-3 border-t border-slate-800 flex gap-2">
+              <button onclick="adicionarAoHistorico()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-medium py-2 px-3 rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/20">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i> Salvar no Histórico
+              </button>
+              <button onclick="copiarMemoriaCalculo()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 py-2 px-3 rounded-lg text-xs flex items-center justify-center gap-1.5 border border-slate-700">
+                <i data-lucide="copy" class="w-4 h-4"></i> Parecer ONS
+              </button>
+            </div>
+          </div>
+
+          <!-- Memória de Cálculo Auditável -->
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm text-xs">
+            <h3 class="font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
+              <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i> Memória de Cálculo Técnica (Passo a Passo)
+            </h3>
+            <div id="txt-memoria-calculo" class="bg-slate-950 p-3.5 rounded-lg border border-slate-800 font-mono text-[11px] text-slate-300 whitespace-pre-wrap leading-relaxed">
+              <!-- Gerado via JS -->
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Histórico de Cenários Simulados -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="font-semibold text-slate-200 text-sm">Histórico de Cenários e Eventos Acumulados</h3>
+            <p class="text-xs text-slate-400">Total acumulado de penalidades simuladas na sessão de trabalho</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="exportarExcel()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5">
+              <i data-lucide="download" class="w-4 h-4"></i> Exportar (.xlsx)
+            </button>
+            <button onclick="limparHistorico()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg text-xs font-medium">
+              Limpar
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-950 text-slate-400 font-semibold border-b border-slate-800">
+              <tr>
+                <th class="p-2.5">FT</th>
+                <th class="p-2.5">Módulo / Escopo</th>
+                <th class="p-2.5">Tipo Evento</th>
+                <th class="p-2.5 text-right">Duração Real</th>
+                <th class="p-2.5 text-right">Fator K</th>
+                <th class="p-2.5 text-right">PB Base</th>
+                <th class="p-2.5 text-right text-amber-400">PV Estimada</th>
+                <th class="p-2.5 text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-historico-body" class="divide-y divide-slate-800 font-mono">
+              <tr>
+                <td colspan="8" class="p-4 text-center text-slate-500 font-sans">Nenhum cenário salvo até o momento.</td>
+              </tr>
+            </tbody>
+            <tfoot class="bg-slate-950 font-bold border-t border-slate-700 text-slate-200">
+              <tr>
+                <td colspan="3" class="p-2.5 font-sans">TOTAL GERAL ACUMULADO:</td>
+                <td id="tot-hist-minutos" class="p-2.5 text-right font-mono">0 min</td>
+                <td colspan="2"></td>
+                <td id="tot-hist-pv" class="p-2.5 text-right font-mono text-amber-400">R$ 0,00</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ABA 2: BASE DE FTs & IMPORTADOR -->
+    <div id="view-ativos" class="space-y-6 hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-200">Base Ativa de Módulos e Funções Transmissão (FT)</h2>
+            <p class="text-xs text-slate-400">Ativos homologados no Anexo do CPST com RAPs anuais e mensais</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-md">
+              <i data-lucide="upload" class="w-4 h-4"></i> Importar Planilha CPST / ANEEL
+              <input type="file" id="file-uploader" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarPlanilha(event)">
+            </label>
+            <button onclick="baixarTemplateExcel()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5">
+              <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Baixar Template Modelo (.xlsx)
+            </button>
+            <button onclick="restaurarBaseOiti()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg text-xs">
+              Recarregar OITI
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabela de Módulos Cadastrados -->
+        <div class="overflow-x-auto max-h-[500px]">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-950 text-slate-400 font-semibold sticky top-0 border-b border-slate-800 z-10">
+              <tr>
+                <th class="p-2.5">Transmissora</th>
+                <th class="p-2.5">Tipo</th>
+                <th class="p-2.5">Nome da FT</th>
+                <th class="p-2.5">Nome do Módulo</th>
+                <th class="p-2.5">Cód. Equipamento</th>
+                <th class="p-2.5 text-right">RAP Anual</th>
+                <th class="p-2.5 text-right">RAP Mensal</th>
+                <th class="p-2.5 text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-ativos-body" class="divide-y divide-slate-800 font-mono text-[11px]">
+              <!-- Preenchido via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ABA 3: MATRIZ DE FATORES K -->
+    <div id="view-matriz" class="space-y-6 hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+        <div class="mb-4">
+          <h2 class="text-sm font-semibold text-slate-200">Matriz Regulamentar de Padrões de Frequência e Fatores Kp / Ko</h2>
+          <p class="text-xs text-slate-400">Referência: Submódulo 15.12 dos Procedimentos de Rede e Resolução Normativa ANEEL nº 729/2016 e 905/2020</p>
+        </div>
+
+        <div class="p-4 bg-amber-950/20 border border-amber-900/40 rounded-lg text-xs text-amber-200 mb-4 leading-relaxed">
+          <strong>Fundamentação Regulatória:</strong> A condição de o fator $K_o$ ser significativamente superior a $K_p$ nas primeiras 5 horas (300 minutos) sinaliza um forte incentivo à realização de manutenções preventivas nos períodos programados, bem como à rápida recomposição operativa das transmissoras para restabelecimento da instalação.
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border border-slate-800">
+            <thead class="bg-slate-950 text-slate-300 font-semibold border-b border-slate-800">
+              <tr>
+                <th class="p-2.5 border-r border-slate-800">FT</th>
+                <th class="p-2.5 border-r border-slate-800">Família / Subfamília de FT</th>
+                <th class="p-2.5 border-r border-slate-800 text-center">Padrão de Frequência (desl./ano)</th>
+                <th class="p-2.5 border-r border-slate-800 text-center text-rose-400">Ko (≤ 300 min)</th>
+                <th class="p-2.5 text-center text-emerald-400">Kp (Programado)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 font-mono text-slate-300">
+              <tr>
+                <td class="p-2.5 font-bold border-r border-slate-800">MG</td>
+                <td class="p-2.5 border-r border-slate-800">Módulo Geral (Qualquer nível de tensão)</td>
+                <td class="p-2.5 border-r border-slate-800 text-center text-slate-500 font-sans">não possui</td>
+                <td class="p-2.5 border-r border-slate-800 text-center font-bold text-rose-400">150</td>
+                <td class="p-2.5 text-center font-bold text-emerald-400">10</td>
+              </tr>
+              <tr class="bg-slate-950/30">
+                <td class="p-2.5 font-bold border-r border-slate-800" rowspan="6">LT</td>
+                <td class="p-2.5 border-r border-slate-800">Linha de Transmissão ≤ 5 km</td>
+                <td class="p-2.5 border-r border-slate-800 text-center">1</td>
+                <td class="p-2.5 border-r border-slate-800 text-center font-bold text-rose-400">150</td>
+                <td class="p-2.5 text-center font-bold text-emerald-400">10</td>
+              </tr>
+              <tr class="bg-slate-950/30">
+                <td class="p-2.5 border-r border-slate-800">> 5 km e ≤ 50 km</td>
+                <td class="p-2.5 border-r border-slate-800 text-center">1</td>
+                <td class="p-2.5 border-r border-slate-800 text-center font-bold text-rose-400">150</td>
+                <td class="p-2.5 text-center font-bold text-emerald-400">10</td>
+              </tr>
+              <tr class="bg-slate-950/30">
+                <td class="p-2.5 border-r border-slate-800">> 50 km (230 kV)</td>
+                <td class="p-2.5 border-r border-slate-800 text-center">3</td>
+                <td class="p-2.5 border-r border-slate-800 text-center font-bold text-rose-400">150</td>
+                <td class="p-2.5 text-center font-bold text-emerald-400">10</td>
+              </tr>
+              <tr class="bg-slate-950/30">
+                <td class="p-2.5 border-r border-slate-800">345 kV, 440 kV, 500 kV</td>
+                <td class="p-2.5 border-r border-slate-800 text-center">2</td>
+                <td class="p-2.5 border-r border-slate-800 text-center font-bold text-rose-400">150</td>
+                <td class="p-2.5 text-center font-bold text-emerald-400">10</td>
+              </tr>
+              <tr class="bg-slate-950/30">
+                <td class="p-2.5 border-r border-slate-800">750 kV</td>
+                <td class="p-2.5 border-r border-slate-800 text-center">3</td>
+                <td class="p-2.5 border-r border-slate-800 text-center font-bold text-rose-400">150</td>
+                <td class="p-2.5 text-center font-bold text-emerald-400">10</td>
+              </tr>
+              <tr class="bg-slate-950/30">
+                <td class="p-2.5 border-r border-slate-800">Cabo Isolado (qualquer tensão)</td>
+                <td class="p-2.5 border-r border-slate-800 text-center text-slate-500 font-sans">não possui</td>
+                <td class="p-2.5 border-r border-slate-800 text-center font-bold text-rose-400">50</td>
+                <td class="p-2.5 text-center font-bold text-emerald-400">2,5</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 font-bold border-r border-slate-800" rowspan="3">TR</td>
+                <td class="p-2.5 border-r border-slate-800">Transformador Trifásico</td>
+                <td class="p-2.5 border-r border-slate-800 text-center">1</td>
+                <td class="p-2.5 border-r border-slate-800 text-center font-bold text-rose-400">50</td>
+                <td class="p-2.5 text-center font-bold text-emerald-400">5,0</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 border-r border-slate-800">Banco Monofásico ≤ 345 kV</td>
+                <td class="p-2.5 border-r border-slate-800 text-center">1</td>
+                <td class="p-2.5 border-r border-slate-800 text-center font-bold text-rose-400">150</td>
+                <td class="p-2.5 text-center font-bold text-emerald-400">10</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 border-r border-slate-800">Banco Monofásico > 345 kV</td>
+                <td class="p-2.5 border-r border-slate-800 text-center">1</td>
+                <td class="p-2.5 border-r border-slate-800 text-center font-bold text-rose-400">150</td>
+                <td class="p-2.5 text-center font-bold text-emerald-400">10</td>
+              </tr>
+              <tr class="bg-slate-950/30">
+                <td class="p-2.5 font-bold border-r border-slate-800" rowspan="5">CR</td>
+                <td class="p-2.5 border-r border-slate-800">Reator de Linha/Barra (REA)</td>
+                <td class="p-2.5 border-r border-slate-800 text-center">1</td>
+                <td class="p-2.5 border-r border-slate-800 text-center font-bold text-rose-400">150</td>
+                <td class="p-2.5 text-center font-bold text-emerald-400">10</td>
+              </tr>
+              <tr class="bg-slate-950/30">
+                <td class="p-2.5 border-r border-slate-800">Compensador Síncrono (CRE)</td>
+                <td class="p-2.5 border-r border-slate-800 text-center">3</td>
+                <td class="p-2.5 border-r border-slate-800 text-center font-bold text-rose-400">150</td>
+                <td class="p-2.5 text-center font-bold text-emerald-400">7,5</td>
+              </tr>
+              <tr class="bg-slate-950/30">
+                <td class="p-2.5 border-r border-slate-800">Compensação Série (CSI)</td>
+                <td class="p-2.5 border-r border-slate-800 text-center">3</td>
+                <td class="p-2.5 border-r border-slate-800 text-center font-bold text-rose-400">50</td>
+                <td class="p-2.5 text-center font-bold text-emerald-400">2,5</td>
+              </tr>
+              <tr class="bg-slate-950/30">
+                <td class="p-2.5 border-r border-slate-800">Banco de Capacitores Shunt (BC)</td>
+                <td class="p-2.5 border-r border-slate-800 text-center">3</td>
+                <td class="p-2.5 border-r border-slate-800 text-center font-bold text-rose-400">100</td>
+                <td class="p-2.5 text-center font-bold text-emerald-400">5,0</td>
+              </tr>
+              <tr class="bg-slate-950/30">
+                <td class="p-2.5 border-r border-slate-800">Compensador Estático (CSE)</td>
+                <td class="p-2.5 border-r border-slate-800 text-center">3</td>
+                <td class="p-2.5 border-r border-slate-800 text-center font-bold text-rose-400">150</td>
+                <td class="p-2.5 text-center font-bold text-emerald-400">7,5</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ABA 4: PRAZOS OPERACIONAIS (RO-AO.BR.05) -->
+    <div id="view-prazos" class="space-y-6 hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+        <h2 class="text-sm font-semibold text-slate-200 mb-2">Prazos Oficiais de Apuração e Consistência (RO-AO.BR.05 / Submódulo 5.13)</h2>
+        <p class="text-xs text-slate-400 mb-4">Prazos regulamentares para tramitação de relatórios, contestações e consistência diária de eventos:</p>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border border-slate-800">
+            <thead class="bg-slate-950 text-slate-300 font-semibold border-b border-slate-800">
+              <tr>
+                <th class="p-2.5 border-r border-slate-800">Item</th>
+                <th class="p-2.5 border-r border-slate-800">Atividade</th>
+                <th class="p-2.5 border-r border-slate-800">Responsável</th>
+                <th class="p-2.5 border-r border-slate-800">Prazo Regulamentar</th>
+                <th class="p-2.5">Periodicidade</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-slate-300">
+              <tr>
+                <td class="p-2.5 border-r border-slate-800 font-mono">1</td>
+                <td class="p-2.5 border-r border-slate-800">Disponibilização das informações dos eventos apurados</td>
+                <td class="p-2.5 border-r border-slate-800 font-medium text-blue-400">ONS</td>
+                <td class="p-2.5 border-r border-slate-800 font-mono text-emerald-400">Até o 3º dia útil subsequente à ocorrência</td>
+                <td class="p-2.5">Diária</td>
+              </tr>
+              <tr class="bg-slate-950/30">
+                <td class="p-2.5 border-r border-slate-800 font-mono">2</td>
+                <td class="p-2.5 border-r border-slate-800">Consistência das apurações dos eventos disponibilizados pelo ONS</td>
+                <td class="p-2.5 border-r border-slate-800 font-medium text-amber-400">Agente Transmissor</td>
+                <td class="p-2.5 border-r border-slate-800 font-mono text-emerald-400">Até 5 dias úteis após recebimento dos eventos</td>
+                <td class="p-2.5">Diária</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 border-r border-slate-800 font-mono">3</td>
+                <td class="p-2.5 border-r border-slate-800">Emissão de parecer final referente às contestações dos agentes</td>
+                <td class="p-2.5 border-r border-slate-800 font-medium text-blue-400">ONS</td>
+                <td class="p-2.5 border-r border-slate-800 font-mono">Até 15 dias úteis após contestação/dados</td>
+                <td class="p-2.5">Sob demanda</td>
+              </tr>
+              <tr class="bg-slate-950/30">
+                <td class="p-2.5 border-r border-slate-800 font-mono">4</td>
+                <td class="p-2.5 border-r border-slate-800">Encaminhamento ao ONS de relatórios técnicos com pleitos de alteração</td>
+                <td class="p-2.5 border-r border-slate-800 font-medium text-amber-400">Agente Transmissor</td>
+                <td class="p-2.5 border-r border-slate-800 font-mono text-emerald-400">Até 10 dias úteis após a Atividade 1</td>
+                <td class="p-2.5">Sob demanda</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 border-r border-slate-800 font-mono">5</td>
+                <td class="p-2.5 border-r border-slate-800">Emissão de parecer final referente aos relatórios técnicos encaminhados</td>
+                <td class="p-2.5 border-r border-slate-800 font-medium text-blue-400">ONS</td>
+                <td class="p-2.5 border-r border-slate-800 font-mono">Até 21 dias úteis após recebimento</td>
+                <td class="p-2.5">Sob demanda</td>
+              </tr>
+              <tr class="bg-slate-950/30">
+                <td class="p-2.5 border-r border-slate-800 font-mono">6</td>
+                <td class="p-2.5 border-r border-slate-800">Emissão de parecer sobre revisão de apuração de eventos já contabilizados</td>
+                <td class="p-2.5 border-r border-slate-800 font-medium text-blue-400">ONS</td>
+                <td class="p-2.5 border-r border-slate-800 font-mono">Até 45 dias após recebimento</td>
+                <td class="p-2.5">Sob demanda</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Script da Aplicação -->
+  <script>
+    // 1. BASE INICIAL DE ATIVOS (17 MÓDULOS DE EDF OITI - CCO-2023-004)
+    const BASE_OITI_PADRAO = [
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "MG", nomeFt: "MG PORTO DO ACU / CCO-2023-004 - RB", modulo: "MG 345 kV PORTO DO ACU MG1 RJ", classe: "RB", codEquip: "GMG-GMGRJPDA -4354", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 4246824.90, rapMensal: 353902.08 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "MG", nomeFt: "MG PORTO DO ACU / CCO-2023-004 - RB", modulo: "IB 345 kV MG 345 kV PORTO DO A", classe: "RB", codEquip: "GMG-GMGRJPDA -4354", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 1008077.74, rapMensal: 84006.48 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "MG", nomeFt: "MG PORTO DO ACU / CCO-2023-004 - RB", modulo: "IB 345 kV MG 345 kV PORTO DO A", classe: "RB", codEquip: "GMG-GMGRJPDA -4354", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 1008077.74, rapMensal: 84006.48 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "MG", nomeFt: "MG PORTO DO ACU / CCO-2023-004 - RB", modulo: "IB 345 kV MG 345 kV PORTO DO A", classe: "RB", codEquip: "GMG-GMGRJPDA -4354", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 1008077.74, rapMensal: 84006.48 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "TR", nomeFt: "TR 345 / 138 kV PORTO DO ACU 1 RJ", modulo: "TR 345/138 kV PORTO DO ACU TR1", classe: "RBF", codEquip: "TR3-RJPDA-3TR1", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 2498363.78, rapMensal: 208196.98 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "TR", nomeFt: "TR 345 / 138 kV PORTO DO ACU 1 RJ", modulo: "MC 345 kV TR 345/138 kV PORTO", classe: "RBF", codEquip: "TR3-RJPDA-3TR1", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 1041072.67, rapMensal: 86756.06 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "TR", nomeFt: "TR 345 / 138 kV PORTO DO ACU 1 RJ", modulo: "MC 138 kV TR 345/138 kV PORTO", classe: "RBF", codEquip: "TR3-RJPDA-3TR1", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 597338.42, rapMensal: 49778.20 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "TR", nomeFt: "TR 345 / 138 kV PORTO DO ACU 2 RJ", modulo: "TR 345/138 kV PORTO DO ACU TR2", classe: "RBF", codEquip: "TR3-RJPDA-3TR2", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 2498363.78, rapMensal: 208196.98 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "TR", nomeFt: "TR 345 / 138 kV PORTO DO ACU 2 RJ", modulo: "MC 345 kV TR 345/138 kV PORTO", classe: "RBF", codEquip: "TR3-RJPDA-3TR2", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 1041072.67, rapMensal: 86756.06 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "TR", nomeFt: "TR 345 / 138 kV PORTO DO ACU 2 RJ", modulo: "MC 138 kV TR 345/138 kV PORTO", classe: "RBF", codEquip: "TR3-RJPDA-3TR2", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 597338.42, rapMensal: 49778.20 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "TR", nomeFt: "TRR 345 / 138 kV PORTO DO ACU TRR1 RJ", modulo: "TR 345/138 kV PORTO DO ACU TRR", classe: "RBF", codEquip: "TR3-1100", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 832787.93, rapMensal: 69398.99 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "LT", nomeFt: "LT 345 kV CAMPOS / PORTO DO ACU C 1 RJ", modulo: "LT 345 kV CAMPOS /PORTO DO ACU", classe: "RB", codEquip: "LTR-RJSTCM3PDA-1", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 378180.82, rapMensal: 31515.07 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "LT", nomeFt: "LT 345 kV CAMPOS / PORTO DO ACU C 1 RJ", modulo: "EL 345 kV CAMPOS LT 345 kV CAM", classe: "RB", codEquip: "LTR-RJSTCM3PDA-1", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 269475.10, rapMensal: 22456.26 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "LT", nomeFt: "LT 345 kV CAMPOS / PORTO DO ACU C 1 RJ", modulo: "EL 345 kV PORTO DO ACU LT 345", classe: "RB", codEquip: "LTR-RJSTCM3PDA-1", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 269475.10, rapMensal: 22456.26 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "LT", nomeFt: "LT 345 kV CAMPOS / PORTO DO ACU C 2 RJ", modulo: "LT 345 kV CAMPOS /PORTO DO ACU", classe: "RB", codEquip: "LTR-RJSTCM3PDA-2", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 378180.82, rapMensal: 31515.07 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "LT", nomeFt: "LT 345 kV CAMPOS / PORTO DO ACU C 2 RJ", modulo: "EL 345 kV CAMPOS LT 345 kV CAM", classe: "RB", codEquip: "LTR-RJSTCM3PDA-2", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 1152651.25, rapMensal: 96054.27 },
+      { transmissora: "EDF OITI - CCO-2023-004", tipo: "LT", nomeFt: "LT 345 kV CAMPOS / PORTO DO ACU C 2 RJ", modulo: "EL 345 kV PORTO DO ACU LT 345", classe: "RB", codEquip: "LTR-RJSTCM3PDA-2", reh: "DSP-2026-2268", vigencia: "01/07/2026", rapAnual: 1152651.25, rapMensal: 96054.27 }
+    ];
+
+    let baseDadosAtivos = JSON.parse(JSON.stringify(BASE_OITI_PADRAO));
+    let historicoCenarios = [];
+
+    // Formatação BRL
+    const fBRL = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+    const fNum = (val, dec=2) => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec }).format(val);
+
+    // Inicialização ao carregar
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      popularSelectEmpresas();
+      renderizarTabelaAtivos();
+      onEmpresaChange();
+    });
+
+    // Navegação de Abas
+    function switchTab(aba) {
+      ['simulador', 'ativos', 'matriz', 'prazos'].forEach(a => {
+        const view = document.getElementById(`view-${a}`);
+        const btn = document.getElementById(`tab-btn-${a}`);
+        if (a === aba) {
+          view.classList.remove('hidden');
+          btn.className = "px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition bg-blue-600 text-white";
+        } else {
+          view.classList.add('hidden');
+          btn.className = "px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition text-slate-400 hover:text-white";
+        }
+      });
+      lucide.createIcons();
+    }
+
+    // Carregar empresas
+    function popularSelectEmpresas() {
+      const empresas = [...new Set(baseDadosAtivos.map(x => x.transmissora))];
+      const sel = document.getElementById('sel-empresa');
+      sel.innerHTML = empresas.map(e => `<option value="${e}">${e}</option>`).join('');
+    }
+
+    // Mudança de Empresa -> Carrega FTs
+    function onEmpresaChange() {
+      const emp = document.getElementById('sel-empresa').value;
+      const fts = [...new Set(baseDadosAtivos.filter(x => x.transmissora === emp).map(x => x.nomeFt))];
+      const selFt = document.getElementById('sel-ft');
+      selFt.innerHTML = fts.map(f => `<option value="${f}">${f}</option>`).join('');
+      onFtChange();
+    }
+
+    // Mudança de FT -> Atualiza Módulos, PB e Matriz de Fatores K
+    function onFtChange() {
+      const ftNome = document.getElementById('sel-ft').value;
+      const modulos = baseDadosAtivos.filter(x => x.nomeFt === ftNome);
+      const selMod = document.getElementById('sel-modulo');
+      selMod.innerHTML = modulos.map(m => `<option value="${m.modulo}">${m.modulo} (${fBRL(m.rapMensal)}/mês)</option>`).join('');
+
+      // Identificar tipo de FT para enquadrar na Matriz K
+      const tipo = modulos[0].tipo;
+      const ehMG = tipo === "MG";
+      document.getElementById('box-regras-mg').classList.toggle('hidden', !ehMG);
+
+      definirFatoresKRegulamentares(modulos[0]);
+      atualizarCardsValores();
+      recalcular();
+    }
+
+    // Identificação na Matriz ANEEL
+    function definirFatoresKRegulamentares(item) {
+      if (!document.getElementById('chk-auto-k').checked) return;
+
+      let kp = 10;
+      let ko = 150;
+      let familia = "";
+      let padrao = "1 desl./ano";
+
+      if (item.tipo === "MG") {
+        kp = 10;
+        ko = 150;
+        familia = "Módulo Geral (Qualquer Tensão)";
+        padrao = "não possui";
+      } else if (item.tipo === "LT") {
+        if (item.nomeFt.includes("345 kV") || item.nomeFt.includes("440 kV") || item.nomeFt.includes("500 kV")) {
+          kp = 10;
+          ko = 150;
+          familia = "Linha de Transmissão 345/440/500 kV";
+          padrao = "2 desl./ano";
+        } else {
+          kp = 10;
+          ko = 150;
+          familia = "Linha de Transmissão Aérea";
+          padrao = "1 a 3 desl./ano";
+        }
+      } else if (item.tipo === "TR") {
+        if (item.nomeFt.includes("345") || item.nomeFt.includes("138")) {
+          kp = 10;
+          ko = 150;
+          familia = "Transformador - Banco Monofásico ≤ 345 kV";
+          padrao = "1 desl./ano";
+        } else {
+          kp = 5.0;
+          ko = 50;
+          familia = "Transformador Trifásico Convencional";
+          padrao = "1 desl./ano";
+        }
+      }
+
+      document.getElementById('inp-kp').value = kp;
+      document.getElementById('inp-ko').value = ko;
+      document.getElementById('inp-familia-ft').value = familia;
+      document.getElementById('badge-padrao-freq').innerText = padrao;
+    }
+
+    function toggleAutoK() {
+      const ftNome = document.getElementById('sel-ft').value;
+      const mod = baseDadosAtivos.find(x => x.nomeFt === ftNome);
+      if (mod) definirFatoresKRegulamentares(mod);
+      recalcular();
+    }
+
+    function onEscopoChange() {
+      const escopo = document.querySelector('input[name="escopo-desconto"]:checked').value;
+      document.getElementById('box-modulo-especifico').classList.toggle('hidden', escopo !== 'MODULO_ISOLADO');
+      atualizarCardsValores();
+      recalcular();
+    }
+
+    function onModuloChange() {
+      atualizarCardsValores();
+      recalcular();
+    }
+
+    // Calcula os valores de RAP Total e PB Aplicado
+    function atualizarCardsValores() {
+      const ftNome = document.getElementById('sel-ft').value;
+      const modulos = baseDadosAtivos.filter(x => x.nomeFt === ftNome);
+      
+      const rapAnualFt = modulos.reduce((acc, x) => acc + x.rapAnual, 0);
+      const rapMensalFt = modulos.reduce((acc, x) => acc + x.rapMensal, 0);
+
+      document.getElementById('card-rap-anual').innerText = fBRL(rapAnualFt);
+      document.getElementById('card-rap-mensal').innerText = fBRL(rapMensalFt);
+
+      const escopo = document.querySelector('input[name="escopo-desconto"]:checked').value;
+      let pbAplicado = rapMensalFt;
+
+      if (escopo === 'MODULO_ISOLADO') {
+        const modNome = document.getElementById('sel-modulo').value;
+        const mod = modulos.find(x => x.modulo === modNome);
+        pbAplicado = mod ? mod.rapMensal : rapMensalFt;
+      }
+
+      document.getElementById('card-pb-aplicado').innerText = fBRL(pbAplicado);
+      return pbAplicado;
+    }
+
+    // Tratamento dos Tipos de Eventos
+    function onTipoEventoChange() {
+      const tipo = document.getElementById('sel-tipo-evento').value;
+      const badge = document.getElementById('badge-tipo-evento');
+      badge.innerText = tipo.replace('_', ' ');
+
+      // Configuração visual dos campos de minutos
+      const colProg = document.getElementById('col-min-prog');
+      const colAtraso = document.getElementById('col-min-atraso');
+      const colNaoUtilizado = document.getElementById('col-min-nao-utilizado');
+      const linhaD2 = document.getElementById('linha-degrau-2');
+      const linhaD3 = document.getElementById('linha-degrau-3');
+
+      if (tipo === 'PROGRAMADO_PRORROGADO') {
+        colProg.classList.remove('hidden');
+        colAtraso.classList.remove('hidden');
+        colNaoUtilizado.classList.add('hidden');
+        linhaD2.classList.remove('hidden');
+        linhaD3.classList.remove('hidden');
+      } else if (tipo === 'PROGRAMADO_ANTECIPADO') {
+        colProg.classList.remove('hidden');
+        colAtraso.classList.add('hidden');
+        colNaoUtilizado.classList.remove('hidden');
+        linhaD2.classList.add('hidden');
+        linhaD3.classList.add('hidden');
+      } else if (tipo === 'OUTROS_DESLIGAMENTOS' || tipo === 'URGENCIA') {
+        colProg.classList.add('hidden');
+        colAtraso.classList.add('hidden');
+        colNaoUtilizado.classList.add('hidden');
+        linhaD2.classList.remove('hidden');
+        linhaD3.classList.add('hidden');
+      } else {
+        colProg.classList.remove('hidden');
+        colAtraso.classList.add('hidden');
+        colNaoUtilizado.classList.add('hidden');
+        linhaD2.classList.add('hidden');
+        linhaD3.classList.add('hidden');
+      }
+
+      if (tipo === 'URGENCIA') {
+        document.getElementById('inp-ko').value = 50;
+      }
+
+      recalcular();
+    }
+
+    // Cálculo dos Marcos de Tempo (RO-AO.BR.05)
+    function calcDeltasTempo() {
+      const tPrevIni = document.getElementById('t-prev-ini').value;
+      const tPrevFim = document.getElementById('t-prev-fim').value;
+      const tRealIni = document.getElementById('t-real-ini').value;
+      const tRealFim = document.getElementById('t-real-fim').value;
+
+      if (!tPrevIni || !tPrevFim || !tRealIni || !tRealFim) return;
+
+      const dPrevIni = new Date(tPrevIni);
+      const dPrevFim = new Date(tPrevFim);
+      const dRealIni = new Date(tRealIni);
+      const dRealFim = new Date(tRealFim);
+
+      const duracaoPrevMin = Math.max(0, Math.round((dPrevFim - dPrevIni) / 60000));
+      const duracaoRealMin = Math.max(0, Math.round((dRealFim - dRealIni) / 60000));
+
+      document.getElementById('inp-min-prog').value = duracaoPrevMin;
+      document.getElementById('inp-min-total').value = duracaoRealMin;
+
+      if (dRealFim > dPrevFim) {
+        const atrasoMin = Math.max(0, Math.round((dRealFim - dPrevFim) / 60000));
+        document.getElementById('inp-min-atraso').value = atrasoMin;
+      } else {
+        const antecipMin = Math.max(0, Math.round((dPrevFim - dRealFim) / 60000));
+        document.getElementById('inp-min-nao-utilizado').value = antecipMin;
+      }
+
+      recalcular();
+    }
+
+    function alternarModoTempo() {
+      const box = document.getElementById('box-marcos-tempo');
+      box.classList.toggle('hidden');
+    }
+
+    // MOTOR PRINCIPAL DE CÁLCULO DE PV
+    function recalcular() {
+      const diasMes = parseInt(document.getElementById('sel-mes').value) || 31;
+      const minutosNoMes = diasMes * 24 * 60; // 44.640 min para 31 dias
+      const pbAplicado = atualizarCardsValores();
+      const tipoEvento = document.getElementById('sel-tipo-evento').value;
+
+      const kp = parseFloat(document.getElementById('inp-kp').value) || 10;
+      const ko = parseFloat(document.getElementById('inp-ko').value) || 150;
+
+      // Custo base por minuto
+      const taxaMinuto = pbAplicado / minutosNoMes;
+      document.getElementById('res-custo-minuto').innerText = `${fBRL(taxaMinuto * kp)} / min (com Kp)`;
+
+      let pvTotal = 0;
+      let d1Label = "", d1Valor = 0;
+      let d2Label = "", d2Valor = 0;
+      let d3Label = "", d3Valor = 0;
+      let textoMemoria = "";
+
+      // Verificação de Módulo Geral (MG)
+      const ftNome = document.getElementById('sel-ft').value;
+      const modulos = baseDadosAtivos.filter(x => x.nomeFt === ftNome);
+      const ehMG = modulos[0].tipo === "MG";
+      let fatorRateioMG = 1.0;
+
+      if (ehMG) {
+        const origemMG = document.getElementById('sel-mg-origem').value;
+        const boxFTs = document.getElementById('box-mg-fts-afetadas');
+        const boxDJs = document.getElementById('box-mg-djs-afetadas');
+
+        if (origemMG === 'OUTROS_EQUIP') {
+          boxFTs.classList.remove('hidden');
+          boxDJs.classList.add('hidden');
+          const indisp = parseFloat(document.getElementById('inp-mg-fts-indisp').value) || 1;
+          const total = parseFloat(document.getElementById('inp-mg-fts-total').value) || 1;
+          fatorRateioMG = Math.min(1.0, indisp / total);
+        } else if (origemMG === 'DISJUNTOR_DJM') {
+          boxFTs.classList.add('hidden');
+          boxDJs.classList.remove('hidden');
+          const indisp = parseFloat(document.getElementById('inp-mg-djs-indisp').value) || 1;
+          const total = parseFloat(document.getElementById('inp-mg-djs-total').value) || 1;
+          fatorRateioMG = Math.min(1.0, indisp / total);
+        } else {
+          boxFTs.classList.add('hidden');
+          boxDJs.classList.add('hidden');
+          fatorRateioMG = 0.50; // 50% fixo
+        }
+      }
+
+      // 1. DESLIGAMENTO PROGRAMADO COM PRORROGAÇÃO/ATRASO (Item 7.1.3.7)
+      if (tipoEvento === 'PROGRAMADO_PRORROGADO') {
+        const minProg = parseFloat(document.getElementById('inp-min-prog').value) || 0;
+        const minAtraso = parseFloat(document.getElementById('inp-min-atraso').value) || 0;
+        const minTotal = minProg + minAtraso;
+        document.getElementById('inp-min-total').value = minTotal;
+
+        // Janela Programada normal
+        d1Valor = taxaMinuto * kp * minProg * fatorRateioMG;
+        d1Label = `Janela Programada (${minProg} min × Kp ${kp}):`;
+
+        // Atraso: Primeiros 30 minutos com Kp * 1.5
+        const atraso30 = Math.min(30, minAtraso);
+        const kAtraso30 = kp * 1.5;
+        d2Valor = taxaMinuto * kAtraso30 * atraso30 * fatorRateioMG;
+        d2Label = `Atraso ≤ 30 min (${atraso30} min × Kp·1.5=${kAtraso30}):`;
+
+        // Atraso: Período subsequente (> 30 min) com Kp * 5.0
+        const atrasoSubseq = Math.max(0, minAtraso - 30);
+        const kAtrasoSub = kp * 5.0;
+        d3Valor = taxaMinuto * kAtrasoSub * atrasoSubseq * fatorRateioMG;
+        d3Label = `Atraso > 30 min (${atrasoSubseq} min × Kp·5=${kAtrasoSub}):`;
+
+        pvTotal = d1Valor + d2Valor + d3Valor;
+
+        textoMemoria = `1. DADOS DE ENTRADA:
+- Função Transmissão: ${ftNome}
+- PB Aplicado: ${fBRL(pbAplicado)} (${diasMes} dias no mês = ${minutosNoMes} min)
+- Custo por Minuto Pro-rata: ${fBRL(taxaMinuto)} / min
+- Duração: ${minProg} min previstos + ${minAtraso} min de atraso (Total: ${minTotal} min)
+${ehMG ? `- Rateio Módulo Geral (MG): ${fNum(fatorRateioMG * 100)}%\n` : ''}
+2. APURAÇÃO DOS DEGRAUS DE PENALIDADE:
+a) Período Programado:
+   PV_prog = ${fBRL(taxaMinuto)} × ${kp} × ${minProg} min ${ehMG ? `× ${fNum(fatorRateioMG)}` : ''} = ${fBRL(d1Valor)}
+
+b) Prorrogação nos 1ºs 30 minutos (Fator Kp × 1,5 = ${kAtraso30}):
+   PV_atraso_30 = ${fBRL(taxaMinuto)} × ${kAtraso30} × ${atraso30} min ${ehMG ? `× ${fNum(fatorRateioMG)}` : ''} = ${fBRL(d2Valor)}
+
+c) Prorrogação no período subsequente (>30 min, Fator Kp × 5,0 = ${kAtrasoSub}):
+   PV_atraso_sub = ${fBRL(taxaMinuto)} × ${kAtrasoSub} × ${atrasoSubseq} min ${ehMG ? `× ${fNum(fatorRateioMG)}` : ''} = ${fBRL(d3Valor)}
+
+3. TOTAL DE PARCELA VARIÁVEL:
+   PV = ${fBRL(d1Valor)} + ${fBRL(d2Valor)} + ${fBRL(d3Valor)} = ${fBRL(pvTotal)}`;
+
+      // 2. DESLIGAMENTO PROGRAMADO COM TÉRMINO ANTECIPADO (Item 7.1.3.8)
+      } else if (tipoEvento === 'PROGRAMADO_ANTECIPADO') {
+        const minProg = parseFloat(document.getElementById('inp-min-prog').value) || 0;
+        const minNaoUsado = parseFloat(document.getElementById('inp-min-nao-utilizado').value) || 0;
+        const minEfetivo = Math.max(0, minProg - minNaoUsado);
+        document.getElementById('inp-min-total').value = minEfetivo;
+
+        // Tempo efetivo de desligamento
+        d1Valor = taxaMinuto * kp * minEfetivo * fatorRateioMG;
+        d1Label = `Período Efetivo (${minEfetivo} min × Kp ${kp}):`;
+
+        // 20% do período não utilizado
+        const minResidual20 = minNaoUsado * 0.20;
+        d2Valor = taxaMinuto * kp * minResidual20 * fatorRateioMG;
+        d2Label = `Não Utilizado (20% de ${minNaoUsado} min = ${minResidual20} min):`;
+
+        pvTotal = d1Valor + d2Valor;
+
+        textoMemoria = `1. PROGRAMADO COM RETORNO ANTECIPADO (Submódulo 15.12 item 7.1.3.8):
+- Período Previsto: ${minProg} min | Retorno Antecipado: ${minNaoUsado} min não utilizados
+- Minutos de desconto: ${minEfetivo} min (reais) + 20% × ${minNaoUsado} min (${minResidual20} min)
+- PV = ${fBRL(d1Valor)} + ${fBRL(d2Valor)} = ${fBRL(pvTotal)}`;
+
+      // 3. OUTROS DESLIGAMENTOS / URGÊNCIA / AUTOMÁTICO (Corte de 300 min / 5 Horas)
+      } else if (tipoEvento === 'OUTROS_DESLIGAMENTOS' || tipo === 'URGENCIA') {
+        const minReal = parseFloat(document.getElementById('inp-min-total').value) || 350;
+        const min300 = Math.min(300, minReal);
+        const minApos300 = Math.max(0, minReal - 300);
+
+        d1Valor = taxaMinuto * ko * min300 * fatorRateioMG;
+        d1Label = `Primeiros 300 min (Ko = ${ko}):`;
+
+        d2Valor = taxaMinuto * kp * minApos300 * fatorRateioMG;
+        d2Label = `Excedente > 300 min (Degrada p/ Kp = ${kp}):`;
+
+        pvTotal = d1Valor + d2Valor;
+
+        textoMemoria = `1. OUTROS DESLIGAMENTOS / EMERGÊNCIA (Submódulo 15.12 item 7.1.3.1):
+- Duração Real: ${minReal} minutos
+- Degrau 1 (≤ 300 min): ${min300} min × Ko ${ko} = ${fBRL(d1Valor)}
+- Degrau 2 (> 300 min): ${minApos300} min × Kp ${kp} (rebaixamento regulamentar) = ${fBRL(d2Valor)}
+${ehMG ? `- Rateio Módulo Geral (MG): ${fNum(fatorRateioMG * 100)}%\n` : ''}
+- Total PV = ${fBRL(pvTotal)}`;
+
+      // 4. CANCELAMENTO < 5 DIAS (PVCI - Item 7.4.3.1)
+      } else if (tipoEvento === 'CANCELAMENTO_5D') {
+        const minCancel = parseFloat(document.getElementById('inp-min-prog').value) || 480;
+        const minBase20 = minCancel * 0.20;
+        d1Valor = taxaMinuto * kp * minBase20 * fatorRateioMG;
+        d1Label = `PVCI (20% de ${minCancel} min × Kp ${kp}):`;
+        pvTotal = d1Valor;
+
+        textoMemoria = `1. CANCELAMENTO COM ANTECEDÊNCIA < 5 DIAS (PVCI - Item 7.4.3.1):
+- Duração da intervenção cancelada: ${minCancel} min
+- Base de cálculo do desconto: 20% do período = ${minBase20} min
+- PVCI = (${fBRL(pbAplicado)} / ${minutosNoMes}) × ${kp} × ${minBase20} min = ${fBRL(pvTotal)}`;
+
+      // 5. PROGRAMADO NORMAL / DEMAIS CASOS
+      } else {
+        const minTotal = parseFloat(document.getElementById('inp-min-total').value) || 480;
+        d1Valor = taxaMinuto * kp * minTotal * fatorRateioMG;
+        d1Label = `Período Programado (${minTotal} min × Kp ${kp}):`;
+        pvTotal = d1Valor;
+
+        textoMemoria = `1. DESLIGAMENTO PROGRAMADO NORMAL:
+- Duração: ${minTotal} min
+- Fator Kp: ${kp}
+- PV = ${fBRL(taxaMinuto)} × ${kp} × ${minTotal} min = ${fBRL(pvTotal)}`;
+      }
+
+      // Atualiza painéis visuais
+      document.getElementById('label-degrau-1').innerText = d1Label;
+      document.getElementById('val-degrau-1').innerText = fBRL(d1Valor);
+
+      document.getElementById('label-degrau-2').innerText = d2Label;
+      document.getElementById('val-degrau-2').innerText = fBRL(d2Valor);
+
+      document.getElementById('label-degrau-3').innerText = d3Label;
+      document.getElementById('val-degrau-3').innerText = fBRL(d3Valor);
+
+      // Trava de Limite A (50% do PB - Submódulo 15.12 item 7.7.3.1)
+      const tetoLimiteA = pbAplicado * 0.50;
+      const boxLimiteA = document.getElementById('box-limite-a');
+      let pvEfetiva = pvTotal;
+
+      if (pvTotal > tetoLimiteA) {
+        boxLimiteA.classList.remove('hidden');
+        document.getElementById('res-teto-50').innerText = fBRL(tetoLimiteA);
+        textoMemoria += `\n\n4. TRAVA REGULATÓRIA (Limite A - Item 7.7.3.1):\n- PV Calculada (${fBRL(pvTotal)}) > 50% do PB (${fBRL(tetoLimiteA)}).\n- Desconto faturado no mês: ${fBRL(tetoLimiteA)}.\n- Saldo transferido para mês seguinte: ${fBRL(pvTotal - tetoLimiteA)}.`;
+        pvEfetiva = tetoLimiteA;
+      } else {
+        boxLimiteA.classList.add('hidden');
+      }
+
+      document.getElementById('res-pv-total').innerText = fBRL(pvEfetiva);
+      const percRAP = (pvEfetiva / pbAplicado) * 100;
+      document.getElementById('res-percent-rap').innerText = `Equivale a ${fNum(percRAP)}% do PB mensal da FT`;
+      document.getElementById('txt-memoria-calculo').innerText = textoMemoria;
+    }
+
+    // Salvar no Histórico
+    function adicionarAoHistorico() {
+      const ftNome = document.getElementById('sel-ft').value;
+      const escopo = document.querySelector('input[name="escopo-desconto"]:checked').value;
+      const modulo = escopo === 'MODULO_ISOLADO' ? document.getElementById('sel-modulo').value : 'FT Completa';
+      const tipo = document.getElementById('sel-tipo-evento').value;
+      const minutos = parseFloat(document.getElementById('inp-min-total').value) || 0;
+      const kp = document.getElementById('inp-kp').value;
+      const pb = atualizarCardsValores();
+      const pv = document.getElementById('res-pv-total').innerText;
+
+      historicoCenarios.push({ ftNome, modulo, tipo, minutos, kp, pb, pv });
+      renderizarHistorico();
+    }
+
+    function renderizarHistorico() {
+      const tbody = document.getElementById('tbl-historico-body');
+      if (historicoCenarios.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-slate-500 font-sans">Nenhum cenário salvo até o momento.</td></tr>';
+        document.getElementById('tot-hist-minutos').innerText = '0 min';
+        document.getElementById('tot-hist-pv').innerText = 'R$ 0,00';
+        return;
+      }
+
+      let totMin = 0;
+      let totPv = 0;
+
+      tbody.innerHTML = historicoCenarios.map((item, idx) => {
+        totMin += item.minutos;
+        const valPv = parseFloat(item.pv.replace('R$', '').replace(/\./g, '').replace(',', '.').trim()) || 0;
+        totPv += valPv;
+
+        return `
+          <tr class="hover:bg-slate-900/60">
+            <td class="p-2.5 font-sans">${item.ftNome}</td>
+            <td class="p-2.5 text-slate-400">${item.modulo}</td>
+            <td class="p-2.5 text-[11px] text-amber-300 font-sans">${item.tipo}</td>
+            <td class="p-2.5 text-right">${item.minutos} min</td>
+            <td class="p-2.5 text-right font-bold text-blue-400">${item.kp}</td>
+            <td class="p-2.5 text-right text-slate-300">${fBRL(item.pb)}</td>
+            <td class="p-2.5 text-right font-bold text-amber-400">${item.pv}</td>
+            <td class="p-2.5 text-center">
+              <button onclick="removerHistorico(${idx})" class="text-rose-400 hover:text-rose-300 text-xs">Excluir</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('tot-hist-minutos').innerText = `${totMin} min`;
+      document.getElementById('tot-hist-pv').innerText = fBRL(totPv);
+    }
+
+    function removerHistorico(idx) {
+      historicoCenarios.splice(idx, 1);
+      renderizarHistorico();
+    }
+
+    function limparHistorico() {
+      historicoCenarios = [];
+      renderizarHistorico();
+    }
+
+    // Copiar Parecer Técnico
+    function copiarMemoriaCalculo() {
+      const texto = document.getElementById('txt-memoria-calculo').innerText;
+      navigator.clipboard.writeText(texto).then(() => {
+        alert('Memória de cálculo copiada para a área de transferência!');
+      });
+    }
+
+    // Renderizar Tabela de Ativos
+    function renderizarTabelaAtivos() {
+      const tbody = document.getElementById('tbl-ativos-body');
+      tbody.innerHTML = baseDadosAtivos.map((item, idx) => `
+        <tr class="hover:bg-slate-900/60">
+          <td class="p-2.5 text-slate-400 font-sans">${item.transmissora}</td>
+          <td class="p-2.5"><span class="px-1.5 py-0.5 rounded bg-slate-800 text-blue-300 font-semibold">${item.tipo}</span></td>
+          <td class="p-2.5 text-slate-200 font-semibold font-sans">${item.nomeFt}</td>
+          <td class="p-2.5 text-slate-300 font-sans">${item.modulo}</td>
+          <td class="p-2.5 text-slate-500">${item.codEquip}</td>
+          <td class="p-2.5 text-right text-slate-300">${fBRL(item.rapAnual)}</td>
+          <td class="p-2.5 text-right text-amber-400 font-semibold">${fBRL(item.rapMensal)}</td>
+          <td class="p-2.5 text-center">
+            <button onclick="simularFtDireto('${item.nomeFt}')" class="px-2 py-1 rounded bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white transition text-xs font-sans">
+              Simular
+            </button>
+          </td>
+        </tr>
+      `).join('');
+
+      document.getElementById('total-ft-badge').innerText = baseDadosAtivos.length;
+    }
+
+    function simularFtDireto(nomeFt) {
+      switchTab('simulador');
+      document.getElementById('sel-ft').value = nomeFt;
+      onFtChange();
+    }
+
+    function restaurarBaseOiti() {
+      baseDadosAtivos = JSON.parse(JSON.stringify(BASE_OITI_PADRAO));
+      popularSelectEmpresas();
+      renderizarTabelaAtivos();
+      onEmpresaChange();
+      alert('Base oficial de EDF OITI restaurada com sucesso!');
+    }
+
+    // Importador de Folhas de Cálculo (SheetJS)
+    function importarPlanilha(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheet = workbook.SheetNames[0];
+          const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { header: 1 });
+
+          if (rows.length < 2) {
+            alert('A planilha está vazia ou não possui cabeçalhos válidos.');
+            return;
+          }
+
+          const header = rows[0].map(h => String(h || '').trim().toLowerCase());
+          
+          const idxTransm = header.findIndex(h => h.includes('transmissora') || h.includes('empresa') || h.includes('agente'));
+          const idxTipo = header.findIndex(h => h.includes('tipo') || h.includes('função'));
+          const idxNomeFt = header.findIndex(h => h.includes('nome da ft') || h.includes('ft') || h.includes('funcao'));
+          const idxModulo = header.findIndex(h => h.includes('módulo') || h.includes('modulo') || h.includes('equipamento') || h.includes('terminal'));
+          const idxCodEquip = header.findIndex(h => h.includes('cód') || h.includes('cod') || h.includes('código'));
+          const idxRapAnual = header.findIndex(h => h.includes('rap anual') || h.includes('rap/ano') || h.includes('rap') && !h.includes('mês') && !h.includes('mes'));
+          const idxRapMensal = header.findIndex(h => h.includes('rap/mês') || h.includes('rap mensal') || h.includes('pb') || h.includes('mes'));
+
+          const novosAtivos = [];
+
+          for (let i = 1; i < rows.length; i++) {
+            const r = rows[i];
+            if (!r || r.length === 0 || !r[idxNomeFt]) continue;
+
+            const parseVal = (v) => {
+              if (typeof v === 'number') return v;
+              if (!v) return 0;
+              const s = String(v).replace('R$', '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
+              return parseFloat(s) || 0;
+            };
+
+            const rapAnual = idxRapAnual !== -1 ? parseVal(r[idxRapAnual]) : 0;
+            const rapMensal = idxRapMensal !== -1 ? parseVal(r[idxRapMensal]) : (rapAnual / 12);
+
+            novosAtivos.push({
+              transmissora: idxTransm !== -1 && r[idxTransm] ? String(r[idxTransm]) : "Transmissora Importada",
+              tipo: idxTipo !== -1 && r[idxTipo] ? String(r[idxTipo]) : "LT",
+              nomeFt: String(r[idxNomeFt]),
+              modulo: idxModulo !== -1 && r[idxModulo] ? String(r[idxModulo]) : String(r[idxNomeFt]),
+              classe: "RB",
+              codEquip: idxCodEquip !== -1 && r[idxCodEquip] ? String(r[idxCodEquip]) : "--",
+              reh: "Importado",
+              vigencia: "Vigente",
+              rapAnual: rapAnual,
+              rapMensal: rapMensal
+            });
+          }
+
+          if (novosAtivos.length > 0) {
+            baseDadosAtivos = novosAtivos;
+            popularSelectEmpresas();
+            renderizarTabelaAtivos();
+            onEmpresaChange();
+            alert(`Sucesso! Foram importados ${novosAtivos.length} módulos da planilha.`);
+          } else {
+            alert('Não foi possível identificar linhas de dados válidas com o layout esperado.');
+          }
+
+        } catch (err) {
+          console.error(err);
+          alert('Erro ao processar arquivo: ' + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // Exportação do Histórico para Excel
+    function exportarExcel() {
+      if (historicoCenarios.length === 0) {
+        alert('Não existem cenários no histórico para exportação.');
+        return;
+      }
+
+      const dados = historicoCenarios.map(h => ({
+        "Função Transmissão": h.ftNome,
+        "Módulo / Escopo": h.modulo,
+        "Tipo de Evento": h.tipo,
+        "Duração Real (min)": h.minutos,
+        "Fator K": h.kp,
+        "Pagamento Base (R$)": h.pb,
+        "Parcela Variável Estimada (R$)": h.pv
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dados);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Apuracao_PV");
+      XLSX.writeFile(wb, "Relatorio_Simulacao_PV_ONS.xlsx");
+    }
+
+    // Download do Template Modelo
+    function baixarTemplateExcel() {
+      const templateData = [
+        {
+          "Transmissora": "EDF OITI - CCO-2023-004",
+          "Tipo de FT": "MG",
+          "Nome da FT": "MG PORTO DO ACU / CCO-2023-004 - RB",
+          "Nome do Módulo": "MG 345 kV PORTO DO ACU MG1 RJ",
+          "Class. de Rede": "RB",
+          "Cód. Equipamento": "GMG-GMGRJPDA -4354",
+          "REH da RAP": "DSP-2026-2268",
+          "Início de Vigência": "01/07/2026",
+          "RAP": 4246824.90,
+          "RAP/mês": 353902.08
+        },
+        {
+          "Transmissora": "EDF OITI - CCO-2023-004",
+          "Tipo de FT": "TR",
+          "Nome da FT": "TR 345 / 138 kV PORTO DO ACU 1 RJ",
+          "Nome do Módulo": "TR 345/138 kV PORTO DO ACU TR1",
+          "Class. de Rede": "RBF",
+          "Cód. Equipamento": "TR3-RJPDA-3TR1",
+          "REH da RAP": "DSP-2026-2268",
+          "Início de Vigência": "01/07/2026",
+          "RAP": 2498363.78,
+          "RAP/mês": 208196.98
+        },
+        {
+          "Transmissora": "EDF OITI - CCO-2023-004",
+          "Tipo de FT": "LT",
+          "Nome da FT": "LT 345 kV CAMPOS / PORTO DO ACU C 1 RJ",
+          "Nome do Módulo": "LT 345 kV CAMPOS /PORTO DO ACU",
+          "Class. de Rede": "RB",
+          "Cód. Equipamento": "LTR-RJSTCM3PDA-1",
+          "REH da RAP": "DSP-2026-2268",
+          "Início de Vigência": "01/07/2026",
+          "RAP": 378180.82,
+          "RAP/mês": 31515.07
+        }
+      ];
+
+      const ws = XLSX.utils.json_to_sheet(templateData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "PagamentoBase_Template");
+      XLSX.writeFile(wb, "Template_Importacao_FT_ONS_ANEEL.xlsx");
+    }
+  </script>
+</body>
+</html>
